@@ -1,13 +1,10 @@
-import React, { useEffect, useState } from "react";
+import React from "react";
 import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "../../contexts/AuthContext";
-import { apiGet } from "../../lib/api";
 import {
   Users,
-  ClipboardList,
   Calendar,
   DollarSign,
-  History,
   LayoutDashboard,
   FileText,
   TrendingUp,
@@ -15,10 +12,7 @@ import {
   UserPlus,
   Building,
   LogOut,
-  ChevronLeft,
-  ChevronRight,
   FolderPlus,
-  FolderOpen,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
 import { Button } from "../ui/button";
@@ -26,14 +20,10 @@ import { Button } from "../ui/button";
 // ---------- Menu Configuration ----------
 const menuConfig = {
   Manager: [
-  
     { path: "/employees", label: "Employees", icon: Users },
     { path: "/manager-board", label: "Manager Board", icon: Users },
-
     { path: "/attendance", label: "Attendance", icon: Calendar },
     { path: "/leave-requests", label: "Leave Requests", icon: FileText },
-
- 
     { path: "/documents-management", label: "Document Management", icon: FolderPlus },
   ],
   HR: [
@@ -45,12 +35,9 @@ const menuConfig = {
     { path: "/documents-management", label: "Document Management", icon: FolderPlus },
   ],
   CEO: [
-
     { path: "/employees", label: "Employees", icon: Users },
     { path: "/attendance", label: "Attendance", icon: Calendar },
     { path: "/leave-requests", label: "Leave Requests", icon: FileText },
-
-
     { path: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
     { path: "/department-reports", label: "Department Reports", icon: Building },
     { path: "/salaries-overview", label: "Salaries Overview", icon: DollarSign },
@@ -59,70 +46,19 @@ const menuConfig = {
     { path: "/documents-management", label: "Document Management", icon: FolderPlus },
   ],
   Employee: [
-    { path: "employee-board", label: "Employee Board", icon: Board },
+    { path: "/employee-board", label: "Employee Board", icon: Building },
     { path: "/my-attendance", label: "Attendance History", icon: Calendar },
     { path: "/my-salary", label: "Salary Details", icon: DollarSign },
     { path: "/profile", label: "Profile", icon: Users },
   ],
 };
 
-
 // ---------- Main Sidebar ----------
 const Sidebar = () => {
   const { user, logout } = useAuth();
   const location = useLocation();
-  const [collapsed, setCollapsed] = useState(false);
-  const [spacesOpen, setSpacesOpen] = useState(false);
-  const [projects, setProjects] = useState([]);
-  const [loadingProjects, setLoadingProjects] = useState(false);
 
   const menuItems = menuConfig[user?.role] || [];
-
-  useEffect(() => {
-    let abort = false;
-
-    const loadProjects = async () => {
-      try {
-        setLoadingProjects(true);
-        const res = await apiGet("/client-onboard?page=0&size=500");
-        if (!res.ok) throw new Error("Failed to load projects");
-        const page = await res.json();
-
-        if (abort) return;
-
-        // normalize shape
-        const data = Array.isArray(page?.content)
-          ? page.content
-          : Array.isArray(page)
-          ? page
-          : [];
-
-        const normalized = data.map((p) => ({
-          id: p.id || p.projectId,
-          name:
-            p.name ||
-            p.clientInfo?.projectName ||
-            p.clientInfo?.businessName ||
-            "Untitled Project",
-          description:
-            p.description || p.clientInfo?.businessName || "No description",
-          status: p.status || "ACTIVE",
-        }));
-
-        setProjects(normalized);
-      } catch (err) {
-        console.error("Failed to load projects", err);
-        if (!abort) setProjects([]);
-      } finally {
-        if (!abort) setLoadingProjects(false);
-      }
-    };
-
-    loadProjects();
-    return () => {
-      abort = true;
-    };
-  }, []);
 
   const getInitials = (name) =>
     name
@@ -131,122 +67,37 @@ const Sidebar = () => {
       .join("")
       .toUpperCase();
 
-  const hideSpaces = user?.role === "HR";
-
   return (
-    <div
-      className={`h-screen bg-linear-to-b from-slate-900 to-slate-800 text-white flex flex-col transition-all duration-300 ${
-        collapsed ? "w-20" : "w-64"
-      }`}
-    >
+    <div className="w-64 h-screen bg-linear-to-b from-slate-900 to-slate-800 text-white flex flex-col">
       {/* Header */}
       <div className="p-4 border-b border-slate-700 flex items-center justify-between">
-        {!collapsed && (
-          <div className="flex items-center space-x-2">
-            <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-              <Building className="w-5 h-5" />
-            </div>
-            <span className="font-bold text-lg">CompanyHub</span>
+        <div className="flex items-center space-x-2">
+          <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
+            <Building className="w-5 h-5" />
           </div>
-        )}
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => setCollapsed(!collapsed)}
-          className="text-white hover:bg-slate-700"
-        >
-          {collapsed ? (
-            <ChevronRight className="w-5 h-5" />
-          ) : (
-            <ChevronLeft className="w-5 h-5" />
-          )}
-        </Button>
+          <span className="font-bold text-lg">CompanyHub</span>
+        </div>
       </div>
 
       {/* User Info */}
       <div className="p-4 border-b border-slate-700">
-        <div
-          className={`flex items-center ${collapsed ? "justify-center" : "space-x-3"}`}
-        >
+        <div className="flex items-center space-x-3">
           <Avatar className="w-10 h-10">
             <AvatarImage src={user?.avatar} />
             <AvatarFallback className="bg-blue-600">
               {getInitials(user?.name || "U")}
             </AvatarFallback>
           </Avatar>
-          {!collapsed && (
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium truncate">{user?.name}</p>
-              <p className="text-xs text-slate-400 truncate">{user?.role}</p>
-            </div>
-          )}
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium truncate">{user?.name}</p>
+            <p className="text-xs text-slate-400 truncate">{user?.role}</p>
+          </div>
         </div>
       </div>
 
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto py-4 scrollbar-hide">
         <ul className="space-y-1 px-2">
-          {!hideSpaces && (
-            <li className="pt-2">
-              <button
-                type="button"
-                onClick={() => setSpacesOpen(!spacesOpen)}
-                className={`w-full flex items-center ${
-                  collapsed ? "justify-center" : "justify-between"
-                } px-3 py-2.5 rounded-lg text-slate-300 hover:bg-slate-700 hover:text-white`}
-              >
-                <div className={`flex items-center ${collapsed ? "" : "space-x-3"}`}>
-                  {spacesOpen ? (
-                    <FolderOpen className="w-5 h-5" />
-                  ) : (
-                    <FolderPlus className="w-5 h-5" />
-                  )}
-                  {!collapsed && (
-                    <span className="text-sm font-medium">Spaces</span>
-                  )}
-                </div>
-                {!collapsed && (
-                  <span className="text-xs text-slate-400">
-                    {projects.length}
-                  </span>
-                )}
-              </button>
-
-              {spacesOpen && (
-                <ul className={`mt-1 ${collapsed ? "px-0" : "px-2"}`}>
-                  {loadingProjects ? (
-                    <li
-                      className={`px-3 py-2 text-xs text-slate-400 ${
-                        collapsed ? "text-center" : ""
-                      }`}
-                    >
-                      Loading…
-                    </li>
-                  ) : (
-                    <>
-                      <ExpandableSection
-                        title="Active Projects"
-                        projects={projects.filter(
-                          (p) => !p.status || p.status.toUpperCase() !== "COMPLETED"
-                        )}
-                        collapsed={collapsed}
-                        location={location}
-                      />
-                      <ExpandableSection
-                        title="Closed Projects"
-                        projects={projects.filter(
-                          (p) => p.status && p.status.toUpperCase() === "COMPLETED"
-                        )}
-                        collapsed={collapsed}
-                        location={location}
-                      />
-                    </>
-                  )}
-                </ul>
-              )}
-            </li>
-          )}
-
           {menuItems.map((item) => {
             const Icon = item.icon;
             const isActive = location.pathname === item.path;
@@ -258,12 +109,10 @@ const Sidebar = () => {
                     isActive
                       ? "bg-blue-600 text-white shadow-lg"
                       : "text-slate-300 hover:bg-slate-700 hover:text-white"
-                  } ${collapsed ? "justify-center" : ""}`}
+                  }`}
                 >
                   <Icon className="w-5 h-5 shrink-0" />
-                  {!collapsed && (
-                    <span className="text-sm font-medium">{item.label}</span>
-                  )}
+                  <span className="text-sm font-medium">{item.label}</span>
                 </Link>
               </li>
             );
@@ -276,12 +125,10 @@ const Sidebar = () => {
         <Button
           onClick={logout}
           variant="ghost"
-          className={`w-full text-slate-300 hover:bg-red-600 hover:text-white ${
-            collapsed ? "px-2" : ""
-          }`}
+          className="w-full text-slate-300 hover:bg-red-600 hover:text-white"
         >
           <LogOut className="w-5 h-5" />
-          {!collapsed && <span className="ml-2">Logout</span>}
+          <span className="ml-2">Logout</span>
         </Button>
       </div>
     </div>
