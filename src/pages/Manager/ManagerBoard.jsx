@@ -3,9 +3,15 @@ import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import { apiGet, apiPost, apiPut } from "../../lib/api";
 
 // Backend statuses (must match regex in DTO/Entity)
-const CORE_STATUSES = ["ASSIGNED", "PENDING", "COMPLETED", "CANCELLED"];
-// UI columns: add a derived BACKLOG column for unassigned
-const UI_COLUMNS = ["BACKLOG", ...CORE_STATUSES];
+// New core statuses requested by you:
+const CORE_STATUSES = ["ENQURIES/SUBMISSION", "SELECTED", "PURCHASE ORDER", "ON BOARDING"];
+// UI columns: PROFILES for unassigned + core statuses
+const BACKLOG_COL = "PROFILES";
+const UI_COLUMNS = [BACKLOG_COL, ...CORE_STATUSES];
+
+// Helper constants
+const DEFAULT_STATUS = CORE_STATUSES[0]; // "ENQURIES/SUBMISSION"
+const COMPLETED_STATUS = "PURCHASE ORDER"; // treat this as the 'completed' equivalent
 
 // API calls aligned to your Spring controllers
 async function fetchEmployees(page = 0, size = 500) {
@@ -28,9 +34,6 @@ async function createTask(payload) {
 }
 
 async function updateTask(id, payload) {
-  // payload must conform to EmployeeTaskHistoryUpdateRequest
-  // Optional: taskName, taskDescription, status, dueDate, updatedAtDateTime, completedAtDateTime
-  // Extended: employeeId (String | null) for assignment/unassignment
   const res = await apiPut(`/task-history/${id}`, payload);
   if (!res.ok) {
     const err = await res.text().catch(() => "");
@@ -172,22 +175,20 @@ export default function ManagerBoard() {
   }, [tasks, filters]);
 
   // Group tasks into columns:
-  // - BACKLOG: unassigned (employeeId null)
-  // - ASSIGNED: must have an assignee AND status === ASSIGNED
-  // - other core columns by status, regardless of assignment
+  // - PROFILES: unassigned (employeeId null)
+  // - core columns by status
   const byColumn = useMemo(() => {
     const map = Object.fromEntries(UI_COLUMNS.map((c) => [c, []]));
     filtered.forEach((t) => {
       const isUnassigned = !t.employeeId;
       if (isUnassigned) {
-        map.BACKLOG.push(t);
+        map[BACKLOG_COL].push(t);
       } else {
-        if (t.status === "ASSIGNED") {
-          map.ASSIGNED.push(t);
-        } else if (CORE_STATUSES.includes(t.status)) {
+        if (CORE_STATUSES.includes(t.status)) {
           map[t.status].push(t);
         } else {
-          (map[t.status] || map.ASSIGNED).push(t);
+          // unknown status -> fallback to first core status
+          (map[t.status] || map[DEFAULT_STATUS]).push(t);
         }
       }
     });
@@ -205,8 +206,9 @@ export default function ManagerBoard() {
     try {
       const payload = {
         status: nextStatus,
-        updatedAtDateTime: nextStatus !== "COMPLETED" ? new Date().toISOString() : undefined,
-        completedAtDateTime: nextStatus === "COMPLETED" ? new Date().toISOString() : undefined,
+        updatedAtDateTime: new Date().toISOString(),
+        // set completedAtDateTime only when moving to the PURCHASE ORDER equivalent
+        completedAtDateTime: nextStatus === COMPLETED_STATUS ? new Date().toISOString() : undefined,
       };
       await updateTask(task.id, payload);
     } catch {
@@ -225,8 +227,8 @@ export default function ManagerBoard() {
     const task = tasks.find((t) => String(t.id) === id);
     if (!task) return;
 
-    // Moving into BACKLOG means unassign the task (keep status)
-    if (to === "BACKLOG") {
+    // Moving into PROFILES means unassign the task (keep status)
+    if (to === BACKLOG_COL) {
       const prev = tasks;
       const next = prev.map((t) =>
         t.id === task.id ? { ...t, employeeId: null, empId: "", empName: "Unassigned" } : t
@@ -243,8 +245,8 @@ export default function ManagerBoard() {
       return;
     }
 
-    // Moving out of BACKLOG to a status column does not auto-assign; only changes status
-    if (from === "BACKLOG" && CORE_STATUSES.includes(to)) {
+    // Moving out of PROFILES to a status column changes status (no auto-assign)
+    if (from === BACKLOG_COL && CORE_STATUSES.includes(to)) {
       if (task.status === to) return;
       const prev = tasks;
       const next = applyMoveStatus(prev, task.id, to);
@@ -252,8 +254,8 @@ export default function ManagerBoard() {
       try {
         await updateTask(task.id, {
           status: to,
-          updatedAtDateTime: to !== "COMPLETED" ? new Date().toISOString() : undefined,
-          completedAtDateTime: to === "COMPLETED" ? new Date().toISOString() : undefined,
+          updatedAtDateTime: new Date().toISOString(),
+          completedAtDateTime: to === COMPLETED_STATUS ? new Date().toISOString() : undefined,
         });
       } catch (e) {
         setTasks(prev);
@@ -261,7 +263,7 @@ export default function ManagerBoard() {
       return;
     }
 
-    // Between status columns (ASSIGNED/PENDING/COMPLETED/CANCELLED)
+    // Between status columns
     if (CORE_STATUSES.includes(to) && task.status !== to) {
       const prev = tasks;
       const next = applyMoveStatus(prev, task.id, to);
@@ -269,8 +271,8 @@ export default function ManagerBoard() {
       try {
         await updateTask(task.id, {
           status: to,
-          updatedAtDateTime: to !== "COMPLETED" ? new Date().toISOString() : undefined,
-          completedAtDateTime: to === "COMPLETED" ? new Date().toISOString() : undefined,
+          updatedAtDateTime: new Date().toISOString(),
+          completedAtDateTime: to === COMPLETED_STATUS ? new Date().toISOString() : undefined,
         });
       } catch (e) {
         setTasks(prev);
@@ -396,7 +398,7 @@ function TaskModal({ onClose, onSaved, onLocalUpdate, onLocalCreate, initial, em
           empName: initial.empName || "",
           taskName: initial.taskName || "",
           taskDescription: initial.taskDescription || "",
-          status: CORE_STATUSES.includes(initial?.status) ? initial.status : "ASSIGNED",
+          status: CORE_STATUSES.includes(initial?.status) ? initial.status : DEFAULT_STATUS,
           dueDate: initial.dueDate ? initial.dueDate.slice(0, 10) : "",
           taskAssignedBy: initial.taskAssignedBy || "Manager",
         }
@@ -405,7 +407,7 @@ function TaskModal({ onClose, onSaved, onLocalUpdate, onLocalCreate, initial, em
           empName: "",
           taskName: "",
           taskDescription: "",
-          status: "ASSIGNED",
+          status: DEFAULT_STATUS,
           dueDate: "",
           taskAssignedBy: "Manager",
         }
@@ -430,13 +432,13 @@ function TaskModal({ onClose, onSaved, onLocalUpdate, onLocalCreate, initial, em
     setSubmitting(true);
     try {
       if (initial) {
-        const isCompleted = form.status === "COMPLETED";
+        const isCompleted = form.status === COMPLETED_STATUS;
         const payload = {
           taskName: form.taskName,
           taskDescription: form.taskDescription,
           status: form.status,
           dueDate: form.dueDate ? new Date(form.dueDate).toISOString() : undefined,
-          updatedAtDateTime: !isCompleted ? new Date().toISOString() : undefined,
+          updatedAtDateTime: new Date().toISOString(),
           completedAtDateTime: isCompleted ? new Date().toISOString() : undefined,
         };
 
@@ -484,7 +486,7 @@ function TaskModal({ onClose, onSaved, onLocalUpdate, onLocalCreate, initial, em
           empId: form.employeeId ? employeeById.get(form.employeeId)?.empId || null : null,
           taskName: form.taskName,
           taskDescription: form.taskDescription,
-          status: form.status || "ASSIGNED",
+          status: form.status || DEFAULT_STATUS,
           dueDate: form.dueDate ? new Date(form.dueDate).toISOString() : undefined,
           taskAssignedBy: form.taskAssignedBy || "Manager",
           createdAtDateTime: new Date().toISOString(),

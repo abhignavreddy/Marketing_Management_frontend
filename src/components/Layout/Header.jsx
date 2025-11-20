@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Bell, Settings, Search, X } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
@@ -27,72 +27,193 @@ const api = apiClient;
 const Header = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-  const [employeeData, setEmployeeData] = useState(null); // Add this
+  const [employeeData, setEmployeeData] = useState(null);
   const [notifications, setNotifications] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
   const [showSearchResults, setShowSearchResults] = useState(false);
   const [loadingNotifications, setLoadingNotifications] = useState(false);
+  
+  // ✅ Refs for cleanup and error handling
+  const notificationErrorCountRef = useRef(0);
+  const notificationsDisabledRef = useRef(false);
+  const abortControllerRef = useRef(null);
+  const searchAbortControllerRef = useRef(null);
 
-  const unreadCount = notifications.filter((n) => !n.read).length;
+  const MAX_ERROR_COUNT = 3; // Stop trying after 3 failures
+  const unreadCount = (Array.isArray(notifications) ? notifications : []).filter((n) => !n.read).length;
 
-  // Load employee data
+  // ✅ Load employee data with cleanup
   useEffect(() => {
-    if (user?.empId) {
-      loadEmployeeData();
-    }
+    let isMounted = true;
+    const controller = new AbortController();
+
+    const loadEmployeeData = async () => {
+      if (!user?.empId) return;
+
+      try {
+        const response = await api.get(`/employees/empid/${user.empId}`, {
+          signal: controller.signal
+        });
+        if (isMounted) {
+          setEmployeeData(response.data);
+        }
+      } catch (err) {
+        if (err.name !== 'AbortError' && err.name !== 'CanceledError') {
+          console.error('Failed to load employee data', err);
+        }
+      }
+    };
+
+    loadEmployeeData();
+
+    return () => {
+      isMounted = false;
+      controller.abort();
+    };
   }, [user?.empId]);
 
-  const loadEmployeeData = async () => {
-    try {
-      const response = await api.get(`/employees/empid/${user.empId}`);
-      setEmployeeData(response.data);
-    } catch (err) {
-      console.error('Failed to load employee data', err);
-    }
-  };
-
-  // Load real notifications
+  // ✅ Load notifications with error handling and cleanup
   useEffect(() => {
-    if (user?.empId) {
+    let isMounted = true;
+    let intervalId = null;
+
+    const loadNotifications = async () => {
+      // Stop trying if disabled or too many errors
+      if (notificationsDisabledRef.current || notificationErrorCountRef.current >= MAX_ERROR_COUNT) {
+        return;
+      }
+
+      if (!user?.empId) return;
+
+      // Create new abort controller for this request
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+      abortControllerRef.current = new AbortController();
+
+      try {
+        setLoadingNotifications(true);
+        const response = await api.get(`/notifications/user/${user.empId}`, {
+          signal: abortControllerRef.current.signal
+        });
+
+        if (!isMounted) return;
+
+        // Success - reset error counter
+        notificationErrorCountRef.current = 0;
+
+        // Normalize possible response shapes
+        const respData = response?.data;
+        let list = [];
+        if (Array.isArray(respData)) list = respData;
+        else if (respData && Array.isArray(respData.content)) list = respData.content;
+        else if (respData && Array.isArray(respData.notifications)) list = respData.notifications;
+        else if (respData && typeof respData === 'object' && Object.keys(respData).length > 0) {
+          const arrField = Object.values(respData).find((v) => Array.isArray(v));
+          if (Array.isArray(arrField)) list = arrField;
+        }
+
+        setNotifications(list);
+      } catch (err) {
+        if (!isMounted) return;
+
+        // Ignore abort errors
+        if (err.name === 'AbortError' || err.name === 'CanceledError') {
+          return;
+        }
+
+        // Handle 404 errors silently
+        if (err.response?.status === 404) {
+          notificationErrorCountRef.current++;
+
+          // Only log once
+          if (notificationErrorCountRef.current === 1) {
+            console.warn('Notifications endpoint not available - feature disabled');
+          }
+
+          // Disable after max errors
+          if (notificationErrorCountRef.current >= MAX_ERROR_COUNT) {
+            notificationsDisabledRef.current = true;
+            console.warn('Notifications feature disabled after multiple failed attempts');
+            // Clear any existing interval
+            if (intervalId) {
+              clearInterval(intervalId);
+            }
+          }
+          return;
+        }
+
+        // Log other errors
+        console.error('Failed to load notifications', err);
+      } finally {
+        if (isMounted) {
+          setLoadingNotifications(false);
+        }
+      }
+    };
+
+    // Initial load
+    if (user?.empId && !notificationsDisabledRef.current) {
       loadNotifications();
-      const interval = setInterval(loadNotifications, 30000);
-      return () => clearInterval(interval);
+
+      // Set up polling only if not disabled
+      intervalId = setInterval(() => {
+        if (!notificationsDisabledRef.current && notificationErrorCountRef.current < MAX_ERROR_COUNT) {
+          loadNotifications();
+        } else {
+          clearInterval(intervalId);
+        }
+      }, 30000);
     }
+
+    // Cleanup
+    return () => {
+      isMounted = false;
+      if (intervalId) {
+        clearInterval(intervalId);
+      }
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
   }, [user?.empId]);
 
-  const loadNotifications = async () => {
-    if (!user?.empId) return;
-    
-    try {
-      setLoadingNotifications(true);
-      const response = await api.get(`/notifications/user/${user.empId}`);
-      setNotifications(response.data || []);
-    } catch (err) {
-      console.error('Failed to load notifications', err);
-    } finally {
-      setLoadingNotifications(false);
-    }
-  };
-
-  const handleSearch = async (query) => {
-    setSearchQuery(query);
-    
-    if (!query.trim()) {
+  // ✅ Search with debounce and cleanup
+  useEffect(() => {
+    if (!searchQuery.trim()) {
       setSearchResults([]);
       setShowSearchResults(false);
       return;
     }
 
+    const timeoutId = setTimeout(() => {
+      handleSearchDebounced(searchQuery);
+    }, 300);
+
+    return () => clearTimeout(timeoutId);
+  }, [searchQuery]);
+
+  const handleSearchDebounced = async (query) => {
+    if (!query.trim()) return;
+
     setIsSearching(true);
     setShowSearchResults(true);
 
+    // Cancel previous search
+    if (searchAbortControllerRef.current) {
+      searchAbortControllerRef.current.abort();
+    }
+    searchAbortControllerRef.current = new AbortController();
+
     try {
-      const empResponse = await api.get('/employees');
+      const [empResponse, taskResponse] = await Promise.all([
+        api.get('/employees', { signal: searchAbortControllerRef.current.signal }),
+        api.get('/story-table', { signal: searchAbortControllerRef.current.signal })
+      ]);
+
       const employees = empResponse.data?.content || empResponse.data || [];
-      
-      const taskResponse = await api.get('/story-table');
       const tasks = taskResponse.data || [];
 
       const lowerQuery = query.toLowerCase();
@@ -128,10 +249,16 @@ const Header = () => {
 
       setSearchResults([...matchedEmployees, ...matchedTasks]);
     } catch (err) {
-      console.error('Search failed', err);
+      if (err.name !== 'AbortError' && err.name !== 'CanceledError') {
+        console.error('Search failed', err);
+      }
     } finally {
       setIsSearching(false);
     }
+  };
+
+  const handleSearch = (query) => {
+    setSearchQuery(query);
   };
 
   const handleSearchResultClick = (result) => {
@@ -158,7 +285,9 @@ const Header = () => {
         )
       );
     } catch (err) {
-      console.error('Failed to mark as read', err);
+      if (err.response?.status !== 404) {
+        console.error('Failed to mark as read', err);
+      }
     }
   };
 
@@ -173,12 +302,14 @@ const Header = () => {
         description: 'All notifications marked as read',
       });
     } catch (err) {
-      console.error('Failed to mark all as read', err);
-      toast({
-        title: 'Error',
-        description: 'Failed to mark notifications as read',
-        variant: 'destructive',
-      });
+      if (err.response?.status !== 404) {
+        console.error('Failed to mark all as read', err);
+        toast({
+          title: 'Error',
+          description: 'Failed to mark notifications as read',
+          variant: 'destructive',
+        });
+      }
     }
   };
 
@@ -191,12 +322,14 @@ const Header = () => {
         description: 'All notifications cleared',
       });
     } catch (err) {
-      console.error('Failed to clear notifications', err);
-      toast({
-        title: 'Error',
-        description: 'Failed to clear notifications',
-        variant: 'destructive',
-      });
+      if (err.response?.status !== 404) {
+        console.error('Failed to clear notifications', err);
+        toast({
+          title: 'Error',
+          description: 'Failed to clear notifications',
+          variant: 'destructive',
+        });
+      }
     }
   };
 
@@ -230,9 +363,11 @@ const Header = () => {
     return (first + last).toUpperCase() || 'U';
   };
 
-  // Use employeeData if available, fallback to user
   const displayData = employeeData || user;
   const fullName = `${displayData?.firstName || ''} ${displayData?.lastName || ''}`.trim() || displayData?.name || 'User';
+
+  // ✅ Only show notifications bell if feature is not disabled
+  const showNotifications = !notificationsDisabledRef.current;
 
   return (
     <header className="h-16 bg-white border-b border-gray-200 px-6 flex items-center justify-between shadow-sm">
@@ -302,84 +437,86 @@ const Header = () => {
 
       {/* Right Section */}
       <div className="flex items-center space-x-4 ml-6">
-        {/* Notifications */}
-        <Popover>
-          <PopoverTrigger asChild>
-            <Button variant="ghost" size="icon" className="relative hover:bg-gray-100">
-              <Bell className="w-5 h-5 text-gray-600" />
-              {unreadCount > 0 && (
-                <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center font-medium">
-                  {unreadCount}
-                </span>
-              )}
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-80 p-0 bg-white shadow-xl border-gray-200" align="end">
-            <div className="p-4 border-b border-gray-200 flex items-center justify-between bg-white">
-              <div>
-                <h3 className="font-semibold text-gray-900">Notifications</h3>
-                <p className="text-xs text-gray-500 mt-0.5">
-                  {loadingNotifications ? 'Loading...' : `You have ${unreadCount} unread notification${unreadCount !== 1 ? 's' : ''}`}
-                </p>
+        {/* Notifications - Only show if enabled */}
+        {showNotifications && (
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="ghost" size="icon" className="relative hover:bg-gray-100">
+                <Bell className="w-5 h-5 text-gray-600" />
+                {unreadCount > 0 && (
+                  <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center font-medium">
+                    {unreadCount}
+                  </span>
+                )}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-80 p-0 bg-white shadow-xl border-gray-200" align="end">
+              <div className="p-4 border-b border-gray-200 flex items-center justify-between bg-white">
+                <div>
+                  <h3 className="font-semibold text-gray-900">Notifications</h3>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    {loadingNotifications ? 'Loading...' : `You have ${unreadCount} unread notification${unreadCount !== 1 ? 's' : ''}`}
+                  </p>
+                </div>
+                {notifications.length > 0 && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={markAllAsRead}
+                    className="text-xs hover:bg-gray-100"
+                  >
+                    Mark all read
+                  </Button>
+                )}
+              </div>
+              <div className="max-h-96 overflow-y-auto scrollbar-hide bg-white">
+                {notifications.length > 0 ? (
+                  notifications.map((notification) => (
+                    <div
+                      key={notification.id}
+                      onClick={() => markAsRead(notification.id)}
+                      className={`p-4 border-b border-gray-100 hover:bg-gray-50 cursor-pointer transition-colors ${
+                        !notification.read ? 'bg-blue-50' : 'bg-white'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between mb-1">
+                        <h4 className="text-sm font-medium text-gray-900">
+                          {notification.title}
+                        </h4>
+                        <Badge
+                          variant="secondary"
+                          className={`text-xs ${getNotificationColor(notification.type)}`}
+                        >
+                          {notification.type}
+                        </Badge>
+                      </div>
+                      <p className="text-xs text-gray-600 mb-2">{notification.message}</p>
+                      <span className="text-xs text-gray-400">
+                        {formatTime(notification.timestamp)}
+                      </span>
+                    </div>
+                  ))
+                ) : (
+                  <div className="p-8 text-center text-gray-500 bg-white">
+                    <Bell className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+                    <p className="text-sm">No notifications</p>
+                  </div>
+                )}
               </div>
               {notifications.length > 0 && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={markAllAsRead}
-                  className="text-xs hover:bg-gray-100"
-                >
-                  Mark all read
-                </Button>
-              )}
-            </div>
-            <div className="max-h-96 overflow-y-auto scrollbar-hide bg-white">
-              {notifications.length > 0 ? (
-                notifications.map((notification) => (
-                  <div
-                    key={notification.id}
-                    onClick={() => markAsRead(notification.id)}
-                    className={`p-4 border-b border-gray-100 hover:bg-gray-50 cursor-pointer transition-colors ${
-                      !notification.read ? 'bg-blue-50' : 'bg-white'
-                    }`}
+                <div className="p-3 border-t border-gray-200 text-center bg-white">
+                  <Button
+                    variant="ghost"
+                    onClick={clearAllNotifications}
+                    className="text-sm text-red-600 hover:text-red-700 hover:bg-red-50 w-full"
                   >
-                    <div className="flex items-start justify-between mb-1">
-                      <h4 className="text-sm font-medium text-gray-900">
-                        {notification.title}
-                      </h4>
-                      <Badge
-                        variant="secondary"
-                        className={`text-xs ${getNotificationColor(notification.type)}`}
-                      >
-                        {notification.type}
-                      </Badge>
-                    </div>
-                    <p className="text-xs text-gray-600 mb-2">{notification.message}</p>
-                    <span className="text-xs text-gray-400">
-                      {formatTime(notification.timestamp)}
-                    </span>
-                  </div>
-                ))
-              ) : (
-                <div className="p-8 text-center text-gray-500 bg-white">
-                  <Bell className="w-8 h-8 mx-auto mb-2 text-gray-300" />
-                  <p className="text-sm">No notifications</p>
+                    Clear all notifications
+                  </Button>
                 </div>
               )}
-            </div>
-            {notifications.length > 0 && (
-              <div className="p-3 border-t border-gray-200 text-center bg-white">
-                <Button
-                  variant="ghost"
-                  onClick={clearAllNotifications}
-                  className="text-sm text-red-600 hover:text-red-700 hover:bg-red-50 w-full"
-                >
-                  Clear all notifications
-                </Button>
-              </div>
-            )}
-          </PopoverContent>
-        </Popover>
+            </PopoverContent>
+          </Popover>
+        )}
 
         {/* Settings Dropdown */}
         <DropdownMenu>
@@ -403,7 +540,7 @@ const Header = () => {
           </DropdownMenuContent>
         </DropdownMenu>
 
-        {/* User Profile Dropdown - FIXED */}
+        {/* User Profile Dropdown */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button className="flex items-center space-x-2 pl-4 border-l border-gray-200 hover:bg-gray-50 rounded-lg p-2 transition-colors">

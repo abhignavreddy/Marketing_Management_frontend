@@ -11,10 +11,10 @@ const RoleRedirect = () => {
 
   // Redirect to first menu item based on role
   const redirectMap = {
-    Manager: '/employees',
+    Manager: '/manager-board',
     HR: '/employee-directory',
     CEO: '/dashboard',
-    Employee: '/my-tasks'
+    Employee: '/employee-board'
   };
 
   return <Navigate to={redirectMap[user.role] || '/login'} replace />;

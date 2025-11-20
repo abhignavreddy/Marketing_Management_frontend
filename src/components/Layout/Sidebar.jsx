@@ -25,6 +25,9 @@ const menuConfig = {
     { path: "/attendance", label: "Attendance", icon: Calendar },
     { path: "/leave-requests", label: "Leave Requests", icon: FileText },
     { path: "/documents-management", label: "Document Management", icon: FolderPlus },
+    { path: "/candidateprofilepage", label: "Candidate Profiles", icon: Users },
+    { path: "/jobshub", label: "Jobs Hub", icon: Users}
+    
   ],
   HR: [
     { path: "/employee-directory", label: "Employee Directory", icon: Users },

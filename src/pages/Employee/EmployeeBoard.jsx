@@ -2,32 +2,35 @@ import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "../../contexts/AuthContext";
 import { apiGet, apiPut } from "../../lib/api";
 
-// Employee-facing columns
-const STATUSES_UI = ["Todo", "In Progress", "Review", "Done"];
+// Employee-facing columns - UPDATED STATUS NAMES
+const STATUSES_UI = ["Profiles", "Enquires/Submissions", "Selected", "Purchase Order", "Onboarding"];
 
-// Map backend <-> UI
+// Map backend <-> UI - UPDATED MAPPINGS
 const uiFromBackend = (s) => {
   switch (s) {
-    case "ASSIGNED": return "Todo";
-    case "PENDING": return "In Progress";
-    case "COMPLETED": return "Done";
-    case "CANCELLED": return "Review";
-    default: return "Todo";
+    case "ASSIGNED": return "Profiles";
+    case "PENDING": return "Enquires/Submissions";
+    case "COMPLETED": return "Onboarding";
+    case "CANCELLED": return "Selected";
+    case "REVIEW": return "Purchase Order";
+    default: return "Profiles";
   }
 };
+
 const backendFromUi = (s) => {
   switch (s) {
-    case "Todo": return "ASSIGNED";
-    case "In Progress": return "PENDING";
-    case "Done": return "COMPLETED";
-    case "Review": return "PENDING"; // adjust if server adds REVIEW
+    case "Profiles": return "ASSIGNED";
+    case "Enquires/Submissions": return "PENDING";
+    case "Selected": return "CANCELLED";
+    case "Purchase Order": return "REVIEW";
+    case "Onboarding": return "COMPLETED";
     default: return "ASSIGNED";
   }
 };
 
 function TaskCard({ task, onMove, onFlagToggle }) {
   return (
-    <div className="rounded-lg border border-zinc-200 bg-white p-3 shadow-sm">
+    <div className="rounded-lg border border-zinc-200 bg-white p-3 shadow-sm hover:shadow-md transition-shadow">
       <div className="flex items-start justify-between">
         <h4 className="font-medium text-zinc-900">{task.title}</h4>
         <button
@@ -45,7 +48,7 @@ function TaskCard({ task, onMove, onFlagToggle }) {
       </div>
       <div className="mt-3">
         <select
-          className="w-full rounded-md border border-zinc-200 bg-white px-2 py-1 text-sm"
+          className="w-full rounded-md border border-zinc-200 bg-white px-2 py-1 text-sm hover:border-zinc-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-colors"
           value={task.status}
           onChange={(e) => onMove(task, e.target.value)}
         >
@@ -140,24 +143,30 @@ export default function EmployeeBoard() {
           <h1 className="text-xl font-semibold text-zinc-900">My Tasks</h1>
           <p className="text-xs text-zinc-500 mt-1">Signed in as {user?.name || empId} ({empId})</p>
         </div>
-        <button className="rounded-md border border-zinc-200 px-3 py-1.5 text-sm" onClick={load} disabled={loading}>
+        <button 
+          className="rounded-md border border-zinc-200 px-3 py-1.5 text-sm hover:bg-zinc-50 active:bg-zinc-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" 
+          onClick={load} 
+          disabled={loading}
+        >
           {loading ? "Refreshing..." : "Refresh"}
         </button>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3 lg:grid-cols-5">
         {STATUSES_UI.map((s) => (
           <div key={s} className="rounded-lg border border-zinc-200 bg-zinc-50">
-            <div className="flex items-center justify-between border-b border-zinc-200 p-2">
+            <div className="flex items-center justify-between border-b border-zinc-200 p-3 bg-white rounded-t-lg">
               <h2 className="text-sm font-semibold text-zinc-800">{s}</h2>
-              <span className="text-xs text-zinc-500">{byStatus[s]?.length || 0}</span>
+              <span className="text-xs font-medium text-zinc-500 bg-zinc-100 px-2 py-0.5 rounded-full">
+                {byStatus[s]?.length || 0}
+              </span>
             </div>
             <div className="space-y-2 p-2">
               {byStatus[s]?.map((t) => (
                 <TaskCard key={t.id} task={t} onMove={moveTask} onFlagToggle={flagToggle} />
               ))}
               {(!byStatus[s] || byStatus[s].length === 0) && (
-                <div className="text-xs text-zinc-500 p-2">No tasks</div>
+                <div className="text-xs text-zinc-500 p-4 text-center">No tasks</div>
               )}
             </div>
           </div>

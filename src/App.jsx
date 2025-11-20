@@ -11,6 +11,7 @@ import Login from "./pages/Login";
 import Unauthorized from "./pages/Unauthorized";
 import RoleRedirect from "./pages/RoleRedirect";
 import RegistrationForm from "./pages/RegistrationForm";
+import VendorRegistrationForm from "./pages/VendorRegistrationForm.jsx";
 
 // Manager Pages
 import EmployeesPage from "./pages/Manager/EmployeesPage";
@@ -18,10 +19,11 @@ import ManagerBoard from "./pages/Manager/ManagerBoard.jsx";
 
 
 // Employee Pages
-
+import CandidateProfilesPage from "./pages/CandidateProfilesPage.jsx";
 import EmployeeBoardPage from "./pages/Employee/EmployeeBoard";
 import MyAttendancePage from "./pages/Employee/MyAttendancePage";
 import MySalaryPage from "./pages/Employee/MySalaryPage.jsx";
+import JobsHub from "./pages/JobsHub.jsx";
 
 // HR Pages
 import PayrollPage from "./pages/HR/PayrollPage";
@@ -63,6 +65,8 @@ function App() {
             {/* ---------- Public Routes ---------- */}
             <Route path="/login" element={<Login />} />
             <Route path="/unauthorized" element={<Unauthorized />} /> 
+            <Route path="/vendor-registration" element={<VendorRegistrationForm />} /> 
+            
 
             {/* ---------- Root (Auto Role Redirect) ---------- */}
             <Route
@@ -110,7 +114,26 @@ function App() {
                 </ProtectedRoute>
               }
             />
-
+            <Route
+              path="/candidateprofilepage"
+              element={
+                <ProtectedRoute allowedRoles={["Manager", "CEO" ,"HR"]}>
+                  <AppShell>
+                    <CandidateProfilesPage />
+                  </AppShell>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/jobshub"
+              element={
+                <ProtectedRoute allowedRoles={["Manager", "CEO" ,"HR"]}>
+                  <AppShell>
+                    <JobsHub />
+                  </AppShell>
+                </ProtectedRoute>
+              }
+            />
 
 
             {/* ---------- HR Routes ---------- */}
