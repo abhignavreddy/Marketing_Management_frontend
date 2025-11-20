@@ -13,15 +13,8 @@ import RoleRedirect from "./pages/RoleRedirect";
 import RegistrationForm from "./pages/RegistrationForm";
 
 // Manager Pages
-import ClientIntakePage from "./pages/Manager/ClientRequirement";
-import ProjectsPage from "./pages/Manager/Projectspage";
 import EmployeesPage from "./pages/Manager/EmployeesPage";
-import AssignTaskPage from "./pages/Manager/AssignTaskPage";
-import AllTasksPage from "./pages/Manager/AllTasksPage";
-import TaskHistoryPage from "./pages/Manager/TaskHistoryPage";
-import ProjectFieldsPage from "./pages/Manager/ProjectFieldsPage";
-import ProjectSpacesPage from "./pages/Spaces/ProjectSpacesPage";
-import SpacesPage from "./pages/SpacesPage";
+import ManagerBoard from "./pages/Manager/ManagerBoard.jsx";
 
 
 // Employee Pages
@@ -45,7 +38,7 @@ import SalariesOverviewPage from "./pages/CEO/SalariesOverviewPage";
 import TopPerformersPage from "./pages/CEO/TopPerformersPage";
 import TaskAnalyticsPage from "./pages/CEO/TaskAnalyticsPage";
 import ProfilePage from "./pages/Employee/ProfilePage.jsx";
-import ManagerBoard from "./pages/Manager/ManagerBoard.jsx";
+
 
 
 // Placeholder Page
@@ -84,34 +77,7 @@ function App() {
             />
 
             {/* ---------- Manager Routes ---------- */}
-            <Route
-              path="/projects"
-              element={
-                <ProtectedRoute allowedRoles={["Manager", "CEO"]}>
-                  <AppShell>
-                    <ProjectsPage />
-                  </AppShell>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/projects/fields"
-              element={
-                <ProtectedRoute allowedRoles={["Manager", "CEO"]}>
-                  <AppShell>
-                    <ProjectFieldsPage />
-                  </AppShell>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/client-intake"
-              element={
-                <ProtectedRoute allowedRoles={["Manager", "CEO"]}>
-                  <ClientIntakePage />
-                </ProtectedRoute>
-              }
-            />
+            
             <Route
               path="/employees"
               element={
@@ -132,16 +98,7 @@ function App() {
                 </ProtectedRoute>
               }
             />
-            <Route
-              path="/assign-task"
-              element={
-                <ProtectedRoute allowedRoles={["Manager", "CEO"]}>
-                  <AppShell>
-                    <AssignTaskPage />
-                  </AppShell>
-                </ProtectedRoute>
-              }
-            />
+
             <Route
               path="/attendance"
               element={
@@ -153,26 +110,8 @@ function App() {
                 </ProtectedRoute>
               }
             />
-            <Route
-              path="/all-tasks"
-              element={
-                <ProtectedRoute allowedRoles={["Manager", "CEO"]}>
-                  <AppShell>
-                    <AllTasksPage />
-                  </AppShell>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/task-history"
-              element={
-                <ProtectedRoute allowedRoles={["Manager", "CEO"]}>
-                  <AppShell>
-                    <TaskHistoryPage />
-                  </AppShell>
-                </ProtectedRoute>
-              }
-            />
+
+
 
             {/* ---------- HR Routes ---------- */}
             <Route
@@ -289,16 +228,7 @@ function App() {
             />
 
             {/* ---------- Employee Routes ---------- */}
-            <Route
-              path="/my-tasks"
-              element={
-                <ProtectedRoute allowedRoles={["Employee"]}>
-                  <AppShell>
-                    <MyTasksPage />
-                  </AppShell>
-                </ProtectedRoute>
-              }
-            />
+
             <Route
               path="/employee-board"
               element={
@@ -330,16 +260,7 @@ function App() {
                 </ProtectedRoute>
               }
             />
-            <Route
-              path="/my-salary"
-              element={
-                <ProtectedRoute allowedRoles={["Employee"]}>
-                  <AppShell>
-                    <PlaceholderPage title="My Salary" />
-                  </AppShell>
-                </ProtectedRoute>
-              }
-            />
+
             <Route
               path="/profile"
               element={
@@ -351,17 +272,6 @@ function App() {
               }
             />
 
-            {/* ---------- SPACES ROUTE (NEW) ---------- */}
-            <Route
-              path="/spaces/:projectId/board"
-              element={
-                <ProtectedRoute allowedRoles={["Manager", "Employee", "CEO"]}>
-                  <AppShell>
-                    <ProjectSpacesPage />
-                  </AppShell>
-                </ProtectedRoute>
-              }
-            />
 
             <Route path="/register" element={<RegistrationForm />} />
           </Routes>

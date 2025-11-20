@@ -26,14 +26,14 @@ import { Button } from "../ui/button";
 // ---------- Menu Configuration ----------
 const menuConfig = {
   Manager: [
-    { path: "/projects", label: "Projects", icon: Users },
+  
     { path: "/employees", label: "Employees", icon: Users },
     { path: "/manager-board", label: "Manager Board", icon: Users },
 
     { path: "/attendance", label: "Attendance", icon: Calendar },
     { path: "/leave-requests", label: "Leave Requests", icon: FileText },
-    { path: "/all-tasks", label: "All Tasks", icon: FileText },
-    { path: "/task-history", label: "Task History", icon: History },
+
+ 
     { path: "/documents-management", label: "Document Management", icon: FolderPlus },
   ],
   HR: [
@@ -45,12 +45,12 @@ const menuConfig = {
     { path: "/documents-management", label: "Document Management", icon: FolderPlus },
   ],
   CEO: [
-    { path: "/projects", label: "Projects", icon: Users },
+
     { path: "/employees", label: "Employees", icon: Users },
     { path: "/attendance", label: "Attendance", icon: Calendar },
     { path: "/leave-requests", label: "Leave Requests", icon: FileText },
-    { path: "/all-tasks", label: "All Tasks", icon: FileText },
-    { path: "/task-history", label: "Task History", icon: History },
+
+
     { path: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
     { path: "/department-reports", label: "Department Reports", icon: Building },
     { path: "/salaries-overview", label: "Salaries Overview", icon: DollarSign },
@@ -59,66 +59,13 @@ const menuConfig = {
     { path: "/documents-management", label: "Document Management", icon: FolderPlus },
   ],
   Employee: [
-    { path: "/my-tasks", label: "My Tasks", icon: ClipboardList }, 
+    { path: "employee-board", label: "Employee Board", icon: Board },
     { path: "/my-attendance", label: "Attendance History", icon: Calendar },
     { path: "/my-salary", label: "Salary Details", icon: DollarSign },
     { path: "/profile", label: "Profile", icon: Users },
   ],
 };
 
-// ---------- Expandable Subsection ----------
-function ExpandableSection({ title, projects, collapsed, location }) {
-  const [open, setOpen] = useState(true); // auto-expanded by default
-
-  return (
-    <li>
-      <button
-        type="button"
-        onClick={() => setOpen(!open)}
-        className={`w-full flex items-center ${
-          collapsed ? "justify-center" : "justify-between"
-        } px-3 py-2 text-sm text-slate-300 hover:bg-slate-700 rounded-lg`}
-      >
-        <div className={`flex items-center ${collapsed ? "" : "space-x-2"}`}>
-          <FolderOpen className="w-4 h-4" />
-          {!collapsed && <span>{title}</span>}
-        </div>
-        {!collapsed && (
-          <span className="text-xs text-slate-400">{projects.length}</span>
-        )}
-      </button>
-
-      {open && (
-        <ul className={`mt-1 ${collapsed ? "px-0" : "pl-4"}`}>
-          {projects.length === 0 && (
-            <li className="text-xs text-slate-500 px-3 py-1">No projects</li>
-          )}
-          {projects.map((p) => {
-            const to = `/spaces/${p.id}/board`;
-            const active = location.pathname.startsWith(to);
-            return (
-              <li key={p.id}>
-                <Link
-                  to={to}
-                  className={`flex items-center ${
-                    collapsed ? "justify-center" : "space-x-2"
-                  } rounded-lg px-3 py-1.5 text-sm transition-colors ${
-                    active
-                      ? "bg-blue-600 text-white"
-                      : "text-slate-300 hover:bg-slate-700 hover:text-white"
-                  }`}
-                >
-                  <ClipboardList className="w-4 h-4 shrink-0" />
-                  {!collapsed && <span className="truncate">{p.name}</span>}
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
-      )}
-    </li>
-  );
-}
 
 // ---------- Main Sidebar ----------
 const Sidebar = () => {
