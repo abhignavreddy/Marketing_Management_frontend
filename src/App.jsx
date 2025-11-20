@@ -127,7 +127,7 @@ function App() {
             <Route
               path="/jobshub"
               element={
-                <ProtectedRoute allowedRoles={["Manager", "CEO" ,"HR"]}>
+                <ProtectedRoute allowedRoles={["Manager", "CEO" ,"HR", "Employee"]}>
                   <AppShell>
                     <JobsHub />
                   </AppShell>
@@ -287,7 +287,7 @@ function App() {
             <Route
               path="/profile"
               element={
-                <ProtectedRoute allowedRoles={["Employee"]}>
+                <ProtectedRoute allowedRoles={["Employee", "HR", "Manager", "CEO"]}>
                   <AppShell>
                     <ProfilePage />
                   </AppShell>
